@@ -1,4 +1,5 @@
-const F_TABLE: [u8; 256] = [
+#[allow(dead_code)]
+static F_TABLE: [u8; 256] = [
     0xa3, 0xd7, 0x09, 0x83, 0xf8, 0x48, 0xf6, 0xf4, 0xb3, 0x21, 0x15, 0x78, 0x99, 0xb1, 0xaf, 0xf9, 
     0xe7, 0x2d, 0x4d, 0x8a, 0xce, 0x4c, 0xca, 0x2e, 0x52, 0x95, 0xd9, 0x1e, 0x4e, 0x38, 0x44, 0x28, 
     0x0a, 0xdf, 0x02, 0xa0, 0x17, 0xf1, 0x60, 0x68, 0x12, 0xb7, 0x7a, 0xc3, 0xe9, 0xfa, 0x3d, 0x53, 
@@ -17,6 +18,44 @@ const F_TABLE: [u8; 256] = [
     0x5e, 0x6c, 0xa9, 0x13, 0x57, 0x25, 0xb5, 0xe3, 0xbd, 0xa8, 0x3a, 0x01, 0x05, 0x59, 0x2a, 0x46
 ];
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_whitening_stage() {
+        let key = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
+        let plaintext = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
+
+        let key_blocks = create_blocks(key);
+        let plaintext_blocks = create_blocks(plaintext);
+
+        let results = whiten_blocks(key_blocks, plaintext_blocks);
+        assert!(results == [0xaaee, 0xaa66, 0xaaee, 0xaa66]);
+    }
+}
+
+fn create_blocks(bytes: Vec<u16>) -> Vec<u16> {
+    let mut blocks = vec![];
+    let mut iter = bytes.iter();
+    while let Some(first) = iter.next() {
+        let second = iter.next().unwrap();
+        let shifted = first << 8;
+        let answer = shifted | second;
+        blocks.push(answer);
+    }
+
+    blocks
+}
+
+fn whiten_blocks(key_blocks: Vec<u16>, plaintext_blocks: Vec<u16>) -> Vec<u16> {
+    let mut results = vec![];
+    for blocks in key_blocks.iter().zip(plaintext_blocks.iter()) {
+        let result = blocks.0 ^ blocks.1;
+        results.push(result);
+    }
+
+    results
+}
+
 fn main() {
-    println!("{:x}", F_TABLE[3]);
 }
