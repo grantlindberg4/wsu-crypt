@@ -37,7 +37,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_g_function() {
         let r0 = 0xaaee;
         let r1 = 0xaa66;
@@ -45,13 +44,23 @@ mod tests {
             0x13, 0x9e, 0x2b, 0x34, 0x35, 0xe2,
             0xb3, 0x45, 0x57, 0x26, 0x3c, 0x56
         ];
-        let t0 = g(r0, &subkeys[0..4]);
-        assert!(t0 == 0xf889);
-        let t1 = g(r0, &subkeys[5..subkeys.len()]);
-        assert!(t1 == 0x7781);
+        let g1 = (r0 >> 8) as u8;
+        assert!(g1 == 0xaa);
+        let g2 = r0 as u8;
+        assert!(g2 == 0xee);
+        
+        let g3 = get_f_table_value(g2 ^ subkeys[0]) ^ g1;
+        assert!(g3 == 0xf3);
+        let g4 = get_f_table_value(g3 ^ subkeys[1]) ^ g2;
+        assert!(g4 == 0x76);
+        let g5 = get_f_table_value(g4 ^ subkeys[2]) ^ g3;
+        assert!(g5 == 0xf8);
+        let g6 = get_f_table_value(g5 ^ subkeys[3]) ^ g4;
+        assert!(g6 == 0x89);
     }
 
     #[test]
+    #[ignore]
     fn test_get_values_from_f_table() {
         let index: u8 = 0x7a;
         let row = (index >> 4) as usize;
@@ -79,6 +88,9 @@ fn g(r: u16, subkeys: &[u8]) -> u16 {
     let g2 = r as u8;
     
     let g3 = get_f_table_value(g2 ^ subkeys[0]) ^ g1;
+    let g4 = get_f_table_value(g3 ^ subkeys[1]) ^ g2;
+    let g5 = get_f_table_value(g4 ^ subkeys[2]) ^ g3;
+    let g6 = get_f_table_value(g5 ^ subkeys[3]) ^ g4;
 
     0xaa
 }
