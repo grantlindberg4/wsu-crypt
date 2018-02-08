@@ -18,10 +18,13 @@ static F_TABLE: [u8; 256] = [
     0x5e, 0x6c, 0xa9, 0x13, 0x57, 0x25, 0xb5, 0xe3, 0xbd, 0xa8, 0x3a, 0x01, 0x05, 0x59, 0x2a, 0x46
 ];
 
+const ROW_LEN: usize = 16;
+
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
+    #[ignore]
     fn test_whitening_stage() {
         let key = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
         let plaintext = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
@@ -32,8 +35,69 @@ mod tests {
         let results = whiten_blocks(key_blocks, plaintext_blocks);
         assert!(results == [0xaaee, 0xaa66, 0xaaee, 0xaa66]);
     }
+
+    #[test]
+    #[ignore]
+    fn test_g_function() {
+        let r0 = 0xaaee;
+        let r1 = 0xaa66;
+        let subkeys = [
+            0x13, 0x9e, 0x2b, 0x34, 0x35, 0xe2,
+            0xb3, 0x45, 0x57, 0x26, 0x3c, 0x56
+        ];
+        let t0 = g(r0, &subkeys[0..4]);
+        assert!(t0 == 0xf889);
+        let t1 = g(r0, &subkeys[5..subkeys.len()]);
+        assert!(t1 == 0x7781);
+    }
+
+    #[test]
+    fn test_get_values_from_f_table() {
+        let index: u8 = 0x7a;
+        let row = (index >> 4) as usize;
+        let col = (index.rotate_right(4) >> 4) as usize;
+        assert!(row == 7);
+        assert!(col == 10);
+        assert!(F_TABLE[row*ROW_LEN + col] == 0xd6);
+
+        assert!(get_f_table_value(0x7a) == 0xd6);
+    }
 }
 
+#[allow(dead_code)]
+fn get_f_table_value(index: u8) -> u8 {
+    let row = (index >> 4) as usize;
+    // I hope there's a more elegant way to find a column
+    let col = (index.rotate_right(4) >> 4) as usize;
+
+    F_TABLE[row*ROW_LEN + col]
+}
+
+#[allow(dead_code)]
+fn g(r: u16, subkeys: &[u8]) -> u16 {
+    let g1 = (r >> 8) as u8;
+    let g2 = r as u8;
+    
+    let g3 = get_f_table_value(g2 ^ subkeys[0]) ^ g1;
+
+    0xaa
+}
+
+#[allow(dead_code)]
+fn f(r0: u16, r1: u16) -> (u16, u16) {
+    // How do we obtain the subkeys?
+    let subkeys = [
+        0x13, 0x9e, 0x2b, 0x34, 0x35, 0xe2,
+        0xb3, 0x45, 0x57, 0x26, 0x3c, 0x56
+    ];
+
+    let t0 = g(r0, &subkeys[0..4]);
+    let t1 = g(r0, &subkeys[5..subkeys.len()]);
+
+    (0x00, 0x01)
+}
+
+#[allow(dead_code)]
 fn create_blocks(bytes: Vec<u16>) -> Vec<u16> {
     let mut blocks = vec![];
     let mut iter = bytes.iter();
@@ -47,6 +111,7 @@ fn create_blocks(bytes: Vec<u16>) -> Vec<u16> {
     blocks
 }
 
+#[allow(dead_code)]
 fn whiten_blocks(key_blocks: Vec<u16>, plaintext_blocks: Vec<u16>) -> Vec<u16> {
     let mut results = vec![];
     for blocks in key_blocks.iter().zip(plaintext_blocks.iter()) {
