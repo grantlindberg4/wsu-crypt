@@ -19,6 +19,7 @@ static F_TABLE: [u8; 256] = [
 ];
 
 const ROW_LEN: usize = 16;
+const NUM_ROUNDS: usize = 16;
 
 #[cfg(test)]
 mod tests {
@@ -82,9 +83,9 @@ mod tests {
             0xb3, 0x45, 0x57, 0x26, 0x3c, 0x56
         ];
 
-        let t0 = g(r0, &subkeys[0..4]);
+        let t0 = g(r0, &subkeys[0..4], 0);
         assert!(t0 == 0xf889);
-        let t1 = g(r1, &subkeys[4..8]);
+        let t1 = g(r1, &subkeys[4..8], 0);
         assert!(t1 == 0x7781);
         let f0 = (t0 as u32 + 2*t1 as u32 + concat(subkeys[8], subkeys[9]) as u32) % 2u32.pow(16);
         assert!(f0 == 0x3eb1);
@@ -107,7 +108,7 @@ fn concat(first: u8, second: u8) -> u16 {
 }
 
 #[allow(dead_code)]
-fn g(r: u16, subkeys: &[u8]) -> u16 {
+fn g(r: u16, subkeys: &[u8], round: usize) -> u16 {
     let g1 = (r >> 8) as u8;
     let g2 = r as u8;
     
@@ -120,15 +121,15 @@ fn g(r: u16, subkeys: &[u8]) -> u16 {
 }
 
 #[allow(dead_code)]
-fn f(r0: u16, r1: u16) -> (u32, u32) {
+fn f(r0: u16, r1: u16, round: usize) -> (u32, u32) {
     // How do we obtain the subkeys?
     let subkeys = [
         0x13, 0x9e, 0x2b, 0x34, 0x35, 0xe2,
         0xb3, 0x45, 0x57, 0x26, 0x3c, 0x56
     ];
 
-    let t0 = g(r0, &subkeys[0..4]);
-    let t1 = g(r0, &subkeys[5..subkeys.len()]);
+    let t0 = g(r0, &subkeys[0..4], round);
+    let t1 = g(r1, &subkeys[4..8], round);
 
     let f0 = (t0 as u32 + 2*t1 as u32 + concat(subkeys[8], subkeys[9]) as u32) % 2u32.pow(16);
     let f1 = (2*t0 as u32 + t1 as u32 + concat(subkeys[10], subkeys[11]) as u32) % 2u32.pow(16);
