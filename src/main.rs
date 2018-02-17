@@ -21,31 +21,27 @@ static F_TABLE: [u8; 256] = [
 const ROW_LEN: usize = 16;
 const COL_LEN: usize = 12;
 const NUM_ROUNDS: usize = 16;
-const NUM_SUBKEY_GEN: usize = 3;
+const SUBKEY_GEN_ROUNDS: usize = 3;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn test_whitening_stage() {
-        let key = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
-        let plaintext = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
+        let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
+        let plaintext: Vec<u8> = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
 
-        let key_blocks = create_blocks(key);
-        let plaintext_blocks = create_blocks(plaintext);
-
-        let results = whiten_blocks(key_blocks, plaintext_blocks);
+        let results = whiten(&key, &plaintext);
         assert!(results == [0xaaee, 0xaa66, 0xaaee, 0xaa66]);
     }
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn test_g_function() {
         let r0 = 0xaaee;
-        let r1 = 0xaa66;
-        let subkeys = [
+        let subkeys = vec![
             0x13, 0x9e, 0x2b, 0x34, 0x35, 0xe2,
             0xb3, 0x45, 0x57, 0x26, 0x3c, 0x56
         ];
@@ -65,7 +61,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn test_get_values_from_f_table() {
         let index: u8 = 0x7a;
         let row = (index >> 4) as usize;
@@ -78,11 +74,11 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn test_f_function() {
         let r0 = 0xaaee;
         let r1 = 0xaa66;
-        let subkeys = [
+        let subkeys = vec![
             0x13, 0x9e, 0x2b, 0x34, 0x35, 0xe2,
             0xb3, 0x45, 0x57, 0x26, 0x3c, 0x56
         ];
@@ -91,15 +87,21 @@ mod tests {
         assert!(t0 == 0xf889);
         let t1 = g(r1, &subkeys[4..8], 0);
         assert!(t1 == 0x7781);
-        let f0 = (t0 as u32 + 2*t1 as u32 + concat(subkeys[8], subkeys[9]) as u32) % 2u32.pow(16);
+
+        let sum = t0 as u32 + 2*t1 as u32 + to_u16_block(&subkeys[8], &subkeys[9]) as u32; 
+        let f0 = (sum % 2u32.pow(16)) as u16;
         assert!(f0 == 0x3eb1);
-        let f1 = (2*t0 as u32 + t1 as u32 + concat(subkeys[10], subkeys[11]) as u32) % 2u32.pow(16);
+
+        let sum = 2*t0 as u32 + t1 as u32 + to_u16_block(&subkeys[10], &subkeys[11]) as u32;
+        let f1 = (sum % 2u32.pow(16)) as u16;
         assert!(f1 == 0xa4e9);
     }
 
     #[test]
+    // #[ignore]
     fn test_subkey_generation() {
-        let expected: Vec<Vec<u16>> = vec![
+        // Change to Vec<Vec<u8>>
+        let expected: Vec<Vec<u8>> = vec![
             vec![0x13,  0x9e,  0x2b,  0x34,  0x35,  0xe2,  0xb3,  0x45,  0x57,  0x26,  0x3c,  0x56],
             vec![0x68,  0x48,  0x80,  0xef,  0x8a,  0x8d,  0x09,  0xf0,  0xac,  0xd1,  0x91,  0x01],
             vec![0xde,  0x37,  0x5e,  0x9a,  0xe0,  0x7b,  0xe6,  0xab,  0x02,  0xbc,  0x6f,  0xbc],
@@ -119,16 +121,14 @@ mod tests {
         ];
 
 
-        let key: Vec<u8> = vec![0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9];
-        let key = to_u16_vec(&key);
-        assert!(key == vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89]);
-        let mut key_block = create_u64_key_from_u16(&key);
+        let key = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
+        let mut key_block = create_key_block(&key);
         assert!(key_block == 0xabcdef0123456789);
 
-        let mut actual: Vec<Vec<u16>> = vec![];
+        let mut actual: Vec<Vec<u8>> = vec![];
 
         for r in 0..NUM_ROUNDS {
-            let mut subkeys = generate_subkeys(&mut key_block, r);
+            let subkeys = generate_subkeys(&mut key_block, r);
             assert!(subkeys.len() == COL_LEN);
             actual.push(subkeys);
         }
@@ -137,38 +137,35 @@ mod tests {
     }
 }
 
-fn k(x: usize, key: &u64) -> u16 {
+fn whiten(key: &Vec<u8>, plaintext: &Vec<u8>) -> Vec<u16> {
+    let key_blocks = create_whitening_blocks(key);
+    let plaintext_blocks = create_whitening_blocks(plaintext);
+
+    whiten_blocks(&key_blocks, &plaintext_blocks)
+}
+
+fn k(x: usize, key: &u64) -> u8 {
     let key = key.swap_bytes();
     let mut bits = vec![];
+
+    // Well, this is jank
     let mut i = 56;
     while i >= 0 {
         bits.push((key >> i) as u8);
         i -= 8;
     }
-    // for i in &bits {
-    //     println!("{:x}", i);
-    // }
-    bits[x % 8] as u16
+
+    bits[x % 8]
 }
 
-fn generate_subkeys(key_block: &mut u64, r: usize) -> Vec<u16> {
+fn generate_subkeys(key_block: &mut u64, r: usize) -> Vec<u8> {
     let mut subkeys = vec![];
-    for _ in 0..NUM_SUBKEY_GEN {
-        *key_block = key_block.rotate_left(1);
-        let k1 = k(4*r + 0, &key_block);
-        subkeys.push(k1);
-
-        *key_block = key_block.rotate_left(1);
-        let k2 = k(4*r + 1, &key_block);
-        subkeys.push(k2);
-
-        *key_block = key_block.rotate_left(1);
-        let k3 = k(4*r + 2, &key_block);
-        subkeys.push(k3);
-
-        *key_block = key_block.rotate_left(1);
-        let k4 = k(4*r + 3, &key_block);
-        subkeys.push(k4);
+    for _ in 0..SUBKEY_GEN_ROUNDS {
+        for i in 0..SUBKEY_GEN_ROUNDS+1 {
+            *key_block = key_block.rotate_left(1);
+            let subkey = k(4*r + i, &key_block);
+            subkeys.push(subkey);
+        }
     }
 
     subkeys
@@ -183,12 +180,8 @@ fn get_f_table_value(index: u8) -> u8 {
     F_TABLE[row*ROW_LEN + col]
 }
 
-fn concat(first: u8, second: u8) -> u16 {
-    ((first as u16) << 8) | second as u16
-}
-
 #[allow(dead_code)]
-fn g(r: u16, subkeys: &[u8], round: usize) -> u16 {
+fn g(r: u16, subkeys: &[u8], _round: usize) -> u16 {
     let g1 = (r >> 8) as u8;
     let g2 = r as u8;
     
@@ -197,11 +190,11 @@ fn g(r: u16, subkeys: &[u8], round: usize) -> u16 {
     let g5 = get_f_table_value(g4 ^ subkeys[2]) ^ g3;
     let g6 = get_f_table_value(g5 ^ subkeys[3]) ^ g4;
 
-    concat(g5, g6)
+    to_u16_block(&g5, &g6)
 }
 
 #[allow(dead_code)]
-fn f(r0: u16, r1: u16, round: usize) -> (u32, u32) {
+fn f(r0: u16, r1: u16, round: usize) -> (u16, u16) {
     let subkeys = [
         0x13, 0x9e, 0x2b, 0x34, 0x35, 0xe2,
         0xb3, 0x45, 0x57, 0x26, 0x3c, 0x56
@@ -210,21 +203,23 @@ fn f(r0: u16, r1: u16, round: usize) -> (u32, u32) {
     let t0 = g(r0, &subkeys[0..4], round);
     let t1 = g(r1, &subkeys[4..8], round);
 
-    let f0 = (t0 as u32 + 2*t1 as u32 + concat(subkeys[8], subkeys[9]) as u32) % 2u32.pow(16);
-    let f1 = (2*t0 as u32 + t1 as u32 + concat(subkeys[10], subkeys[11]) as u32) % 2u32.pow(16);
+    let sum = t0 as u32 + 2*t1 as u32 + to_u16_block(&subkeys[8], &subkeys[9]) as u32; 
+    let f0 = (sum % 2u32.pow(16)) as u16;
+
+    let sum = 2*t0 as u32 + t1 as u32 + to_u16_block(&subkeys[10], &subkeys[11]) as u32;
+    let f1 = (sum % 2u32.pow(16)) as u16;
 
     (f0, f1)
 }
 
 #[allow(dead_code)]
-fn create_blocks(bytes: Vec<u16>) -> Vec<u16> {
+fn create_whitening_blocks(bytes: &Vec<u8>) -> Vec<u16> {
     let mut blocks = vec![];
 
     let mut iter = bytes.iter();
     while let Some(first) = iter.next() {
         let second = iter.next().unwrap();
-        let shifted = first << 8;
-        let answer = shifted | second;
+        let answer = to_u16_block(&first, &second);
         blocks.push(answer);
     }
 
@@ -232,7 +227,7 @@ fn create_blocks(bytes: Vec<u16>) -> Vec<u16> {
 }
 
 #[allow(dead_code)]
-fn whiten_blocks(key_blocks: Vec<u16>, plaintext_blocks: Vec<u16>) -> Vec<u16> {
+fn whiten_blocks(key_blocks: &Vec<u16>, plaintext_blocks: &Vec<u16>) -> Vec<u16> {
     let mut results = vec![];
     for blocks in key_blocks.iter().zip(plaintext_blocks.iter()) {
         let result = blocks.0 ^ blocks.1;
@@ -242,15 +237,34 @@ fn whiten_blocks(key_blocks: Vec<u16>, plaintext_blocks: Vec<u16>) -> Vec<u16> {
     results
 }
 
+fn to_u16_block(first: &u8, second: &u8) -> u16 {
+    let first = (*first as u16) << 8;
+    let second = *second as u16;
+
+    first | second
+}
+
+fn to_u32_block(first: &u16, second: &u16) -> u32 {
+    let first = (*first as u32) << 16;
+    let second = *second as u32;
+
+    first | second
+}
+
+fn to_u64_block(first: &u32, second: &u32) -> u64 {
+    let first = (*first as u64) << 16;
+    let second = *second as u64;
+
+    first | second
+}
+
 #[allow(dead_code)]
 fn to_u16_vec(key: &Vec<u8>) -> Vec<u16> {
     let mut iter = key.iter();
     let mut blocks: Vec<u16> = vec![];
     while let Some(first) = iter.next() {
         let second = iter.next().unwrap();
-        let first = (*first as u16) << 4;
-        let second = *second as u16;
-        let block = first | second;
+        let block = to_u16_block(&first, &second);
         blocks.push(block);
     }
 
@@ -263,9 +277,7 @@ fn to_u32_vec(key: &Vec<u16>) -> Vec<u32> {
     let mut blocks: Vec<u32> = vec![];
     while let Some(first) = iter.next() {
         let second = iter.next().unwrap();
-        let first = (*first as u32) << 8;
-        let second = *second as u32;
-        let block = first | second;
+        let block = to_u32_block(&first, &second);
         blocks.push(block);
     }
 
@@ -278,9 +290,7 @@ fn to_u64_vec(key: &Vec<u32>) -> Vec<u64> {
     let mut blocks: Vec<u64> = vec![];
     while let Some(first) = iter.next() {
         let second = iter.next().unwrap();
-        let first = (*first as u64) << 16;
-        let second = *second as u64;
-        let block = first | second;
+        let block = to_u64_block(&first, &second);
         blocks.push(block);
     }
 
@@ -288,18 +298,16 @@ fn to_u64_vec(key: &Vec<u32>) -> Vec<u64> {
 }
 
 #[allow(dead_code)]
-fn create_u64_key_from_u16(key: &Vec<u16>) -> u64 {
-    // let key = to_u16_vec(&key);
-    
+fn create_key_block(key: &Vec<u8>) -> u64 {
+    let key = to_u16_vec(&key);
     let key = to_u32_vec(&key);
-    let key = to_u64_vec(&key);
-
-    (key[0] << 32) | key[1]
+    
+    ((key[0] as u64) << 32) | key[1] as u64
 }
 
 // fn encrypt(key: &Vec<u16>, plaintext: &Vec<u16>) -> u64 {
-//     let key_blocks = create_blocks(key);
-//     let plaintext_blocks = create_blocks(plaintext);
+    // let key_blocks = create_whitening_blocks(key);
+    // let plaintext_blocks = create_whitening_blocks(plaintext);
 
 //     let results = whiten_blocks(key_blocks, plaintext_blocks);
 
@@ -325,5 +333,5 @@ fn create_u64_key_from_u16(key: &Vec<u16>) -> u64 {
 
 fn main() {
     // let key: u64 = 0xabcdef0123456789;
-    // let key: Vec<u8> = vec![0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9];
+    // let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
 }
