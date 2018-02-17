@@ -19,7 +19,9 @@ static F_TABLE: [u8; 256] = [
 ];
 
 const ROW_LEN: usize = 16;
+const COL_LEN: usize = 12;
 const NUM_ROUNDS: usize = 16;
+const NUM_SUBKEY_GEN: usize = 3;
 
 #[cfg(test)]
 mod tests {
@@ -97,76 +99,79 @@ mod tests {
 
     #[test]
     fn test_subkey_generation() {
-        // let expected: [u16; 192] = [
-        //     0x13,  0x9e,  0x2b,  0x34,  0x35,  0xe2,  0xb3,  0x45,  0x57,  0x26,  0x3c,  0x56,
-        //     0x68,  0x48,  0x80,  0xef,  0x8a,  0x8d,  0x09,  0xf0,  0xac,  0xd1,  0x91,  0x01,
-        //     0xde,  0x37,  0x5e,  0x9a,  0xe0,  0x7b,  0xe6,  0xab,  0x02,  0xbc,  0x6f,  0xbc,
-        //     0x35,  0xe2,  0xb3,  0x45,  0x57,  0x26,  0x3c,  0x56,  0x79,  0x6a,  0xc4,  0x67,
-        //     0x8a,  0x8d,  0x09,  0xf0,  0xac,  0xd1,  0x91,  0x01,  0xcf,  0x15,  0x1a,  0x12,
-        //     0xe0,  0x7b,  0xe6,  0xab,  0x02,  0xbc,  0x6f,  0xbc,  0x24,  0xc0,  0xf7,  0xcd,
-        //     0x57,  0x26,  0x3c,  0x56,  0x79,  0x6a,  0xc4,  0x67,  0x9b,  0xaf,  0x4d,  0x78,
-        //     0xac,  0xd1,  0x91,  0x01,  0xcf,  0x15,  0x1a,  0x12,  0xf1,  0x59,  0xa2,  0x23,
-        //     0x02,  0xbc,  0x6f,  0xbc,  0x24,  0xc0,  0xf7,  0xcd,  0x46,  0x04,  0x78,  0xde,
-        //     0x79,  0x6a,  0xc4,  0x67,  0x9b,  0xaf,  0x4d,  0x78,  0xbd,  0xf3,  0xd5,  0x89,
-        //     0xcf,  0x15,  0x1a,  0x12,  0xf1,  0x59,  0xa2,  0x23,  0x13,  0x9e,  0x2b,  0x34,
-        //     0x24,  0xc0,  0xf7,  0xcd,  0x46,  0x04,  0x78,  0xde,  0x68,  0x48,  0x80,  0xef,
-        //     0x9b,  0xaf,  0x4d,  0x78,  0xbd,  0xf3,  0xd5,  0x89,  0xde,  0x37,  0x5e,  0x9a,
-        //     0xf1,  0x59,  0xa2,  0x23,  0x13,  0x9e,  0x2b,  0x34,  0x35,  0xe2,  0xb3,  0x45,
-        //     0x46,  0x04,  0x78,  0xde,  0x68,  0x48,  0x80,  0xef,  0x8a,  0x8d,  0x09,  0xf0,
-        //     0xbd,  0xf3,  0xd5,  0x89,  0xde,  0x37,  0x5e,  0x9a,  0xe0,  0x7b,  0xe6,  0xab,
-        // ];
+        let expected: Vec<Vec<u16>> = vec![
+            vec![0x13,  0x9e,  0x2b,  0x34,  0x35,  0xe2,  0xb3,  0x45,  0x57,  0x26,  0x3c,  0x56],
+            vec![0x68,  0x48,  0x80,  0xef,  0x8a,  0x8d,  0x09,  0xf0,  0xac,  0xd1,  0x91,  0x01],
+            vec![0xde,  0x37,  0x5e,  0x9a,  0xe0,  0x7b,  0xe6,  0xab,  0x02,  0xbc,  0x6f,  0xbc],
+            vec![0x35,  0xe2,  0xb3,  0x45,  0x57,  0x26,  0x3c,  0x56,  0x79,  0x6a,  0xc4,  0x67],
+            vec![0x8a,  0x8d,  0x09,  0xf0,  0xac,  0xd1,  0x91,  0x01,  0xcf,  0x15,  0x1a,  0x12],
+            vec![0xe0,  0x7b,  0xe6,  0xab,  0x02,  0xbc,  0x6f,  0xbc,  0x24,  0xc0,  0xf7,  0xcd],
+            vec![0x57,  0x26,  0x3c,  0x56,  0x79,  0x6a,  0xc4,  0x67,  0x9b,  0xaf,  0x4d,  0x78],
+            vec![0xac,  0xd1,  0x91,  0x01,  0xcf,  0x15,  0x1a,  0x12,  0xf1,  0x59,  0xa2,  0x23],
+            vec![0x02,  0xbc,  0x6f,  0xbc,  0x24,  0xc0,  0xf7,  0xcd,  0x46,  0x04,  0x78,  0xde],
+            vec![0x79,  0x6a,  0xc4,  0x67,  0x9b,  0xaf,  0x4d,  0x78,  0xbd,  0xf3,  0xd5,  0x89],
+            vec![0xcf,  0x15,  0x1a,  0x12,  0xf1,  0x59,  0xa2,  0x23,  0x13,  0x9e,  0x2b,  0x34],
+            vec![0x24,  0xc0,  0xf7,  0xcd,  0x46,  0x04,  0x78,  0xde,  0x68,  0x48,  0x80,  0xef],
+            vec![0x9b,  0xaf,  0x4d,  0x78,  0xbd,  0xf3,  0xd5,  0x89,  0xde,  0x37,  0x5e,  0x9a],
+            vec![0xf1,  0x59,  0xa2,  0x23,  0x13,  0x9e,  0x2b,  0x34,  0x35,  0xe2,  0xb3,  0x45],
+            vec![0x46,  0x04,  0x78,  0xde,  0x68,  0x48,  0x80,  0xef,  0x8a,  0x8d,  0x09,  0xf0],
+            vec![0xbd,  0xf3,  0xd5,  0x89,  0xde,  0x37,  0x5e,  0x9a,  0xe0,  0x7b,  0xe6,  0xab],
+        ];
 
-        let expected = vec![0x13,  0x9e,  0x2b,  0x34,  0x35,  0xe2,  0xb3,  0x45,  0x57,  0x26,  0x3c,  0x56];
-        let mut subkeys = vec![];
 
-        // let key = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
         let key: Vec<u8> = vec![0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9];
-        let converted = create_u64_key_from_u16(&key);
+        let key = to_u16_vec(&key);
+        assert!(key == vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89]);
+        let mut key_block = create_u64_key_from_u16(&key);
+        assert!(key_block == 0xabcdef0123456789);
 
-        let mut shifted = converted;
-        for r in 0..1 {
-            shifted = shifted.rotate_left(1);
-            let k1 = k(4*r + 0, &shifted);
-            subkeys.push(k1);
-            shifted = shifted.rotate_left(1);
-            let k2 = k(4*r + 1, &shifted);
-            subkeys.push(k2);
-            shifted = shifted.rotate_left(1);
-            let k3 = k(4*r + 2, &shifted);
-            subkeys.push(k3);
-            shifted = shifted.rotate_left(1);
-            let k4 = k(4*r + 3, &shifted);
-            subkeys.push(k4);
+        let mut actual: Vec<Vec<u16>> = vec![];
 
-            shifted = shifted.rotate_left(1);
-            let k5 = k(4*r + 0, &shifted);
-            subkeys.push(k5);
-            shifted = shifted.rotate_left(1);
-            let k6 = k(4*r + 1, &shifted);
-            subkeys.push(k6);
-            shifted = shifted.rotate_left(1);
-            let k7 = k(4*r + 2, &shifted);
-            subkeys.push(k7);
-            shifted = shifted.rotate_left(1);
-            let k8 = k(4*r + 3, &shifted);
-            subkeys.push(k8);
-
-            shifted = shifted.rotate_left(1);
-            let k9 = k(4*r + 0, &shifted);
-            subkeys.push(k9);
-            shifted = shifted.rotate_left(1);
-            let k10 = k(4*r + 1, &shifted);
-            subkeys.push(k10);
-            shifted = shifted.rotate_left(1);
-            let k11 = k(4*r + 2, &shifted);
-            subkeys.push(k11);
-            shifted = shifted.rotate_left(1);
-            let k12 = k(4*r + 3, &shifted);
-            subkeys.push(k12);
+        for r in 0..NUM_ROUNDS {
+            let mut subkeys = generate_subkeys(&mut key_block, r);
+            assert!(subkeys.len() == COL_LEN);
+            actual.push(subkeys);
         }
 
-        assert!(subkeys == expected);
+        assert!(actual == expected);
     }
+}
+
+fn k(x: usize, key: &u64) -> u16 {
+    let key = key.swap_bytes();
+    let mut bits = vec![];
+    let mut i = 56;
+    while i >= 0 {
+        bits.push((key >> i) as u8);
+        i -= 8;
+    }
+    // for i in &bits {
+    //     println!("{:x}", i);
+    // }
+    bits[x % 8] as u16
+}
+
+fn generate_subkeys(key_block: &mut u64, r: usize) -> Vec<u16> {
+    let mut subkeys = vec![];
+    for _ in 0..NUM_SUBKEY_GEN {
+        *key_block = key_block.rotate_left(1);
+        let k1 = k(4*r + 0, &key_block);
+        subkeys.push(k1);
+
+        *key_block = key_block.rotate_left(1);
+        let k2 = k(4*r + 1, &key_block);
+        subkeys.push(k2);
+
+        *key_block = key_block.rotate_left(1);
+        let k3 = k(4*r + 2, &key_block);
+        subkeys.push(k3);
+
+        *key_block = key_block.rotate_left(1);
+        let k4 = k(4*r + 3, &key_block);
+        subkeys.push(k4);
+    }
+
+    subkeys
 }
 
 #[allow(dead_code)]
@@ -197,7 +202,6 @@ fn g(r: u16, subkeys: &[u8], round: usize) -> u16 {
 
 #[allow(dead_code)]
 fn f(r0: u16, r1: u16, round: usize) -> (u32, u32) {
-    // How do we obtain the subkeys?
     let subkeys = [
         0x13, 0x9e, 0x2b, 0x34, 0x35, 0xe2,
         0xb3, 0x45, 0x57, 0x26, 0x3c, 0x56
@@ -238,20 +242,7 @@ fn whiten_blocks(key_blocks: Vec<u16>, plaintext_blocks: Vec<u16>) -> Vec<u16> {
     results
 }
 
-fn k(x: usize, key: &u64) -> u16 {
-    let key = key.swap_bytes();
-    let mut bits = vec![];
-    let mut i = 56;
-    while i >= 0 {
-        bits.push((key >> i) as u8);
-        i -= 8;
-    }
-    // for i in &bits {
-    //     println!("{:x}", i);
-    // }
-    bits[x % 8] as u16
-}
-
+#[allow(dead_code)]
 fn to_u16_vec(key: &Vec<u8>) -> Vec<u16> {
     let mut iter = key.iter();
     let mut blocks: Vec<u16> = vec![];
@@ -266,6 +257,7 @@ fn to_u16_vec(key: &Vec<u8>) -> Vec<u16> {
     blocks
 }
 
+#[allow(dead_code)]
 fn to_u32_vec(key: &Vec<u16>) -> Vec<u32> {
     let mut iter = key.iter();
     let mut blocks: Vec<u32> = vec![];
@@ -280,6 +272,7 @@ fn to_u32_vec(key: &Vec<u16>) -> Vec<u32> {
     blocks
 }
 
+#[allow(dead_code)]
 fn to_u64_vec(key: &Vec<u32>) -> Vec<u64> {
     let mut iter = key.iter();
     let mut blocks: Vec<u64> = vec![];
@@ -294,8 +287,9 @@ fn to_u64_vec(key: &Vec<u32>) -> Vec<u64> {
     blocks
 }
 
-fn create_u64_key_from_u16(key: &Vec<u8>) -> u64 {
-    let key = to_u16_vec(&key);
+#[allow(dead_code)]
+fn create_u64_key_from_u16(key: &Vec<u16>) -> u64 {
+    // let key = to_u16_vec(&key);
     
     let key = to_u32_vec(&key);
     let key = to_u64_vec(&key);
@@ -303,57 +297,33 @@ fn create_u64_key_from_u16(key: &Vec<u8>) -> u64 {
     (key[0] << 32) | key[1]
 }
 
+// fn encrypt(key: &Vec<u16>, plaintext: &Vec<u16>) -> u64 {
+//     let key_blocks = create_blocks(key);
+//     let plaintext_blocks = create_blocks(plaintext);
+
+//     let results = whiten_blocks(key_blocks, plaintext_blocks);
+
+//     assert!(results == [0xaaee, 0xaa66, 0xaaee, 0xaa66]);
+
+//     let mut r0 = results[0];
+//     let mut r1 = results[1];
+//     let mut r2 = results[2];
+//     let mut r3 = results[3];
+
+//     for r in 0..NUM_ROUNDS {
+//         let (f0, f1) = f(r0, r1, r);
+//         let temp_r2 = r2;
+//         let temp_r3 = r3;
+//         r2 = r0;
+//         r3 = r1;
+//         r0 = temp_r2 ^ f0 as u16;
+//         r1 = temp_r3 ^ f1 as u16;
+//     }
+
+//     ciphertext
+// }
+
 fn main() {
     // let key: u64 = 0xabcdef0123456789;
-    // let key = key.rotate_left(1);
-    let key: Vec<u8> = vec![0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9];
-    let converted = create_u64_key_from_u16(&key);
-    println!("64-bit Key: {:x}", converted);
-
-    let mut shifted = converted;
-    let mut subkeys = vec![];
-    for r in 0..1 {
-        shifted = shifted.rotate_left(1);
-        let k1 = k(4*r + 0, &shifted);
-        subkeys.push(k1);
-        shifted = shifted.rotate_left(1);
-        let k2 = k(4*r + 1, &shifted);
-        subkeys.push(k2);
-        shifted = shifted.rotate_left(1);
-        let k3 = k(4*r + 2, &shifted);
-        subkeys.push(k3);
-        shifted = shifted.rotate_left(1);
-        let k4 = k(4*r + 3, &shifted);
-        subkeys.push(k4);
-
-        shifted = shifted.rotate_left(1);
-        let k5 = k(4*r + 0, &shifted);
-        subkeys.push(k5);
-        shifted = shifted.rotate_left(1);
-        let k6 = k(4*r + 1, &shifted);
-        subkeys.push(k6);
-        shifted = shifted.rotate_left(1);
-        let k7 = k(4*r + 2, &shifted);
-        subkeys.push(k7);
-        shifted = shifted.rotate_left(1);
-        let k8 = k(4*r + 3, &shifted);
-        subkeys.push(k8);
-
-        shifted = shifted.rotate_left(1);
-        let k9 = k(4*r + 0, &shifted);
-        subkeys.push(k9);
-        shifted = shifted.rotate_left(1);
-        let k10 = k(4*r + 1, &shifted);
-        subkeys.push(k10);
-        shifted = shifted.rotate_left(1);
-        let k11 = k(4*r + 2, &shifted);
-        subkeys.push(k11);
-        shifted = shifted.rotate_left(1);
-        let k12 = k(4*r + 3, &shifted);
-        subkeys.push(k12);
-    }
-    println!("CURRENT SUBKEYS");
-    for i in &subkeys {
-        println!("{:x}", i)
-    }
+    // let key: Vec<u8> = vec![0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9];
 }
