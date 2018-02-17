@@ -100,7 +100,6 @@ mod tests {
     #[test]
     // #[ignore]
     fn test_subkey_generation() {
-        // Change to Vec<Vec<u8>>
         let expected: Vec<Vec<u8>> = vec![
             vec![0x13,  0x9e,  0x2b,  0x34,  0x35,  0xe2,  0xb3,  0x45,  0x57,  0x26,  0x3c,  0x56],
             vec![0x68,  0x48,  0x80,  0xef,  0x8a,  0x8d,  0x09,  0xf0,  0xac,  0xd1,  0x91,  0x01],
@@ -134,6 +133,86 @@ mod tests {
         }
 
         assert!(actual == expected);
+    }
+
+    #[test]
+    fn test_block_creation() {
+        let mut r0 = 0xaaee;
+        let mut r1 = 0xaa66;
+        let mut r2 = 0xaaee;
+        let mut r3 = 0xaa66;
+        let mut key_block = 0xabcdef0123456789;
+
+        let (f0, f1) = f(r0, r1, &mut key_block, 0);
+        assert!(f0 == 0x3eb1);
+        assert!(f1 == 0xa4e9);
+        let temp_r2 = r2;
+        let temp_r3 = r3;
+        r2 = r0;
+        r3 = r1;
+        r0 = temp_r2 ^ f0 as u16;
+        r1 = temp_r3 ^ f1 as u16;
+
+        let block = to_u32_vec(&vec![r0, r1, r2, r3]);
+        let block = ((block[0] as u64) << 32) | block[1] as u64;
+
+        assert!(block == 0x945f0e8faaeeaa66);
+    }
+
+    #[test]
+    // #[ignore]
+    fn test_subkey_generation_in_f_function() {
+        let expected: Vec<u64> = vec![
+            0x945f0e8faaeeaa66,
+            0x24c7cb70945f0e8f,
+            0x99efc5d324c7cb70,
+            0xe0562f3499efc5d3,
+            0x708dbb8ce0562f34,
+            0xb3a5bb1c708dbb8c,
+            0xba991c1bb3a5bb1c,
+            0x9ad4d197ba991c1b,
+            0xb7538cf69ad4d197,
+            0x559ecc0bb7538cf6,
+            0x2df37aaf559ecc0b,
+            0x721b9b4c2df37aaf,
+            0x906cce55721b9b4c,
+            0xccd1ac27906cce55,
+            0x811429e4ccd1ac27,
+            0x9bbb3172811429e4,
+        ];
+
+        let mut r0 = 0xaaee;
+        let mut r1 = 0xaa66;
+        let mut r2 = 0xaaee;
+        let mut r3 = 0xaa66;
+        let mut key_block = 0xabcdef0123456789;
+
+        let mut blocks = vec![];
+
+         for r in 0..NUM_ROUNDS {
+            let (f0, f1) = f(r0, r1, &mut key_block, r);
+            if r == 0 {
+                assert!(f0 == 0x3eb1);
+                assert!(f1 == 0xa4e9);
+            }
+            let temp_r2 = r2;
+            let temp_r3 = r3;
+            r2 = r0;
+            r3 = r1;
+            r0 = temp_r2 ^ f0 as u16;
+            r1 = temp_r3 ^ f1 as u16;
+
+            let block = to_u32_vec(&vec![r0, r1, r2, r3]);
+            let block = ((block[0] as u64) << 32) | block[1] as u64;
+            blocks.push(block);
+        }
+
+        println!("Blocks:");
+        for block in &blocks {
+            println!("{:x}", block);
+        }
+
+        assert!(blocks == expected);
     }
 }
 
@@ -194,11 +273,8 @@ fn g(r: u16, subkeys: &[u8], _round: usize) -> u16 {
 }
 
 #[allow(dead_code)]
-fn f(r0: u16, r1: u16, round: usize) -> (u16, u16) {
-    let subkeys = [
-        0x13, 0x9e, 0x2b, 0x34, 0x35, 0xe2,
-        0xb3, 0x45, 0x57, 0x26, 0x3c, 0x56
-    ];
+fn f(r0: u16, r1: u16, key_block: &mut u64, round: usize) -> (u16, u16) {
+    let subkeys = generate_subkeys(key_block, round);
 
     let t0 = g(r0, &subkeys[0..4], round);
     let t1 = g(r1, &subkeys[4..8], round);
@@ -285,19 +361,6 @@ fn to_u32_vec(key: &Vec<u16>) -> Vec<u32> {
 }
 
 #[allow(dead_code)]
-fn to_u64_vec(key: &Vec<u32>) -> Vec<u64> {
-    let mut iter = key.iter();
-    let mut blocks: Vec<u64> = vec![];
-    while let Some(first) = iter.next() {
-        let second = iter.next().unwrap();
-        let block = to_u64_block(&first, &second);
-        blocks.push(block);
-    }
-
-    blocks
-}
-
-#[allow(dead_code)]
 fn create_key_block(key: &Vec<u8>) -> u64 {
     let key = to_u16_vec(&key);
     let key = to_u32_vec(&key);
@@ -318,15 +381,15 @@ fn create_key_block(key: &Vec<u8>) -> u64 {
 //     let mut r2 = results[2];
 //     let mut r3 = results[3];
 
-//     for r in 0..NUM_ROUNDS {
-//         let (f0, f1) = f(r0, r1, r);
-//         let temp_r2 = r2;
-//         let temp_r3 = r3;
-//         r2 = r0;
-//         r3 = r1;
-//         r0 = temp_r2 ^ f0 as u16;
-//         r1 = temp_r3 ^ f1 as u16;
-//     }
+    // for r in 0..NUM_ROUNDS {
+    //     let (f0, f1) = f(r0, r1, r);
+    //     let temp_r2 = r2;
+    //     let temp_r3 = r3;
+    //     r2 = r0;
+    //     r3 = r1;
+    //     r0 = temp_r2 ^ f0 as u16;
+    //     r1 = temp_r3 ^ f1 as u16;
+    // }
 
 //     ciphertext
 // }
