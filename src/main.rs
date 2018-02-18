@@ -1,4 +1,3 @@
-#[allow(dead_code)]
 static F_TABLE: [u8; 256] = [
     0xa3, 0xd7, 0x09, 0x83, 0xf8, 0x48, 0xf6, 0xf4, 0xb3, 0x21, 0x15, 0x78, 0x99, 0xb1, 0xaf, 0xf9, 
     0xe7, 0x2d, 0x4d, 0x8a, 0xce, 0x4c, 0xca, 0x2e, 0x52, 0x95, 0xd9, 0x1e, 0x4e, 0x38, 0x44, 0x28, 
@@ -136,6 +135,7 @@ mod tests {
     }
 
     #[test]
+    // #[ignore]
     fn test_block_creation() {
         let mut r0 = 0xaaee;
         let mut r1 = 0xaa66;
@@ -207,17 +207,12 @@ mod tests {
             blocks.push(block);
         }
 
-        // println!("Blocks:");
-        // for block in &blocks {
-        //     println!("{:x}", block);
-        // }
-
         assert!(blocks == expected);
     }
 
     #[test]
+    // #[ignore]
     fn test_output_whitening() {
-        let block = 0x9bbb3172811429e4;
         let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
 
         let r0 = 0x9bbb;
@@ -231,6 +226,42 @@ mod tests {
 
         assert!(ciphertext == 0x2ad9c6e5b8fe56fb);
     }
+
+    #[test]
+    fn test_encrypt() {
+        let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
+        let plaintext: Vec<u8> = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
+
+        let ciphertext = encrypt(&key, &plaintext);
+
+        assert!(ciphertext == 0x2ad9c6e5b8fe56fb);
+    }
+}
+
+fn encrypt(key: &Vec<u8>, plaintext: &Vec<u8>) -> u64 {
+    let results = whiten_input(key, plaintext);
+
+    let mut r0 = results[0];
+    let mut r1 = results[1];
+    let mut r2 = results[2];
+    let mut r3 = results[3];
+
+    let mut key_block = create_key_block(&key);
+
+    for r in 0..NUM_ROUNDS {
+        let (f0, f1) = f(r0, r1, &mut key_block, r);
+
+        let temp_r2 = r2;
+        let temp_r3 = r3;
+        r2 = r0;
+        r3 = r1;
+        r0 = temp_r2 ^ f0 as u16;
+        r1 = temp_r3 ^ f1 as u16;
+    }
+
+    let y = vec![r2, r3, r0, r1];
+
+    whiten_output(&create_whitening_blocks(&key), &y)
 }
 
 fn whiten_output(key: &Vec<u16>, y: &Vec<u16>) -> u64 {
@@ -274,7 +305,6 @@ fn generate_subkeys(key_block: &mut u64, r: usize) -> Vec<u8> {
     subkeys
 }
 
-#[allow(dead_code)]
 fn get_f_table_value(index: u8) -> u8 {
     let row = (index >> 4) as usize;
     // I hope there's a more elegant way to find a column
@@ -283,7 +313,6 @@ fn get_f_table_value(index: u8) -> u8 {
     F_TABLE[row*ROW_LEN + col]
 }
 
-#[allow(dead_code)]
 fn g(r: u16, subkeys: &[u8], _round: usize) -> u16 {
     let g1 = (r >> 8) as u8;
     let g2 = r as u8;
@@ -296,7 +325,6 @@ fn g(r: u16, subkeys: &[u8], _round: usize) -> u16 {
     to_u16_block(&g5, &g6)
 }
 
-#[allow(dead_code)]
 fn f(r0: u16, r1: u16, key_block: &mut u64, round: usize) -> (u16, u16) {
     let subkeys = generate_subkeys(key_block, round);
 
@@ -312,7 +340,6 @@ fn f(r0: u16, r1: u16, key_block: &mut u64, round: usize) -> (u16, u16) {
     (f0, f1)
 }
 
-#[allow(dead_code)]
 fn create_whitening_blocks(bytes: &Vec<u8>) -> Vec<u16> {
     let mut blocks = vec![];
 
@@ -326,7 +353,6 @@ fn create_whitening_blocks(bytes: &Vec<u8>) -> Vec<u16> {
     blocks
 }
 
-#[allow(dead_code)]
 fn whiten_blocks(key_blocks: &Vec<u16>, plaintext_blocks: &Vec<u16>) -> Vec<u16> {
     let mut results = vec![];
     for blocks in key_blocks.iter().zip(plaintext_blocks.iter()) {
@@ -351,14 +377,6 @@ fn to_u32_block(first: &u16, second: &u16) -> u32 {
     first | second
 }
 
-fn to_u64_block(first: &u32, second: &u32) -> u64 {
-    let first = (*first as u64) << 16;
-    let second = *second as u64;
-
-    first | second
-}
-
-#[allow(dead_code)]
 fn to_u16_vec(key: &Vec<u8>) -> Vec<u16> {
     let mut iter = key.iter();
     let mut blocks: Vec<u16> = vec![];
@@ -371,7 +389,6 @@ fn to_u16_vec(key: &Vec<u8>) -> Vec<u16> {
     blocks
 }
 
-#[allow(dead_code)]
 fn to_u32_vec(key: &Vec<u16>) -> Vec<u32> {
     let mut iter = key.iter();
     let mut blocks: Vec<u32> = vec![];
@@ -384,39 +401,12 @@ fn to_u32_vec(key: &Vec<u16>) -> Vec<u32> {
     blocks
 }
 
-#[allow(dead_code)]
 fn create_key_block(key: &Vec<u8>) -> u64 {
     let key = to_u16_vec(&key);
     let key = to_u32_vec(&key);
     
     ((key[0] as u64) << 32) | key[1] as u64
 }
-
-// fn encrypt(key: &Vec<u16>, plaintext: &Vec<u16>) -> u64 {
-    // let key_blocks = create_whitening_blocks(key);
-    // let plaintext_blocks = create_whitening_blocks(plaintext);
-
-//     let results = whiten_blocks(key_blocks, plaintext_blocks);
-
-//     assert!(results == [0xaaee, 0xaa66, 0xaaee, 0xaa66]);
-
-//     let mut r0 = results[0];
-//     let mut r1 = results[1];
-//     let mut r2 = results[2];
-//     let mut r3 = results[3];
-
-    // for r in 0..NUM_ROUNDS {
-    //     let (f0, f1) = f(r0, r1, r);
-    //     let temp_r2 = r2;
-    //     let temp_r3 = r3;
-    //     r2 = r0;
-    //     r3 = r1;
-    //     r0 = temp_r2 ^ f0 as u16;
-    //     r1 = temp_r3 ^ f1 as u16;
-    // }
-
-//     ciphertext
-// }
 
 fn main() {
     // let key: u64 = 0xabcdef0123456789;
