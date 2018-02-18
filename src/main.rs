@@ -207,12 +207,35 @@ mod tests {
             blocks.push(block);
         }
 
-        println!("Blocks:");
-        for block in &blocks {
-            println!("{:x}", block);
-        }
+        // println!("Blocks:");
+        // for block in &blocks {
+        //     println!("{:x}", block);
+        // }
 
         assert!(blocks == expected);
+    }
+
+    #[test]
+    fn test_output_whitening() {
+        let block = 0x9bbb3172811429e4;
+        let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
+
+        let key = create_whitening_blocks(&key);
+
+        let r0 = 0x9bbb;
+        let r1 = 0x3172;
+        let r2 = 0x8114;
+        let r3 = 0x29e4;
+
+        let y0 = r2;
+        let y1 = r3;
+        let y2 = r0;
+        let y3 = r1;
+
+        let ciphertext = whiten_blocks(&vec![y0, y1, y2, y3], &key);
+        let ciphertext = to_u32_vec(&ciphertext);
+        let ciphertext = ((ciphertext[0] as u64) << 32) | ciphertext[1] as u64;
+        assert!(ciphertext == 0x2ad9c6e5b8fe56fb);
     }
 }
 
