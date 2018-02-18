@@ -1,3 +1,6 @@
+use std::fs::File;
+use std::io::prelude::*;
+
 static F_TABLE: [u8; 256] = [
     0xa3, 0xd7, 0x09, 0x83, 0xf8, 0x48, 0xf6, 0xf4, 0xb3, 0x21, 0x15, 0x78, 0x99, 0xb1, 0xaf, 0xf9, 
     0xe7, 0x2d, 0x4d, 0x8a, 0xce, 0x4c, 0xca, 0x2e, 0x52, 0x95, 0xd9, 0x1e, 0x4e, 0x38, 0x44, 0x28, 
@@ -27,7 +30,7 @@ mod tests {
     use super::*;
 
     #[test]
-    // #[ignore]
+    #[ignore]
     fn test_whitening_stage() {
         let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
         let plaintext: Vec<u8> = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
@@ -37,7 +40,7 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
+    #[ignore]
     fn test_g_function() {
         let r0 = 0xaaee;
         let subkeys = vec![
@@ -60,7 +63,7 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
+    #[ignore]
     fn test_get_values_from_f_table() {
         let index: u8 = 0x7a;
         let row = (index >> 4) as usize;
@@ -73,7 +76,7 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
+    #[ignore]
     fn test_f_function() {
         let r0 = 0xaaee;
         let r1 = 0xaa66;
@@ -97,7 +100,7 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
+    #[ignore]
     fn test_subkey_generation_for_encrypt() {
         let expected: Vec<Vec<u8>> = vec![
             vec![0x13,  0x9e,  0x2b,  0x34,  0x35,  0xe2,  0xb3,  0x45,  0x57,  0x26,  0x3c,  0x56],
@@ -132,6 +135,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_subkey_generation_for_decrypt() {
         let expected: Vec<Vec<u8>> = vec![
             vec![0xbd,  0xf3,  0xd5,  0x89,  0xde,  0x37,  0x5e,  0x9a,  0xe0,  0x7b,  0xe6,  0xab],
@@ -168,7 +172,7 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
+    #[ignore]
     fn test_block_creation() {
         let mut r0 = 0xaaee;
         let mut r1 = 0xaa66;
@@ -194,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
+    #[ignore]
     fn test_subkey_generation_in_f_function() {
         let expected: Vec<u64> = vec![
             0x945f0e8faaeeaa66,
@@ -246,7 +250,7 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
+    #[ignore]
     fn test_output_whitening() {
         let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
 
@@ -263,6 +267,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_encrypt() {
         let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
         let plaintext: Vec<u8> = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
@@ -270,6 +275,25 @@ mod tests {
         let ciphertext = encrypt(&key, &plaintext);
 
         assert!(ciphertext == 0x2ad9c6e5b8fe56fb);
+    }
+
+    #[test]
+    fn test_file_handling() {
+        let mut f = File::open("input/plaintext.txt").expect("File for plaintext not found");
+        let mut plaintext = String::new();
+        f.read_to_string(&mut plaintext).expect("Issue parsing the file");
+        let plaintext = plaintext.into_bytes();
+
+        let mut f = File::open("input/key.txt").expect("File for key not found");
+        let mut key = String::new();
+        f.read_to_string(&mut key).expect("Issue parsing the file");
+        let key = key.into_bytes();
+
+        // let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
+        // let plaintext: Vec<u8> = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
+
+        let ciphertext = encrypt(&key, &plaintext);
+        println!("{:x}", ciphertext);
     }
 }
 
@@ -462,12 +486,14 @@ fn generate_subkeys_for_decrypt(key_block: &mut u64, r: usize) -> Vec<u8> {
 }
 
 fn main() {
+    // Testing keygen for decrypt
+
     // let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
-    let mut key_block: u64 = 0xabcdef0123456789;
+    // let mut key_block: u64 = 0xabcdef0123456789;
     // let mut key_block: u64 = 0xdef0123456789abc;
-    let subkeys = generate_subkeys_for_decrypt(&mut key_block, 0);
-    for subkey in &subkeys {
-        println!("{:x}", subkey);
-    }
-    println!("{:x}", key_block);
+    // let subkeys = generate_subkeys_for_decrypt(&mut key_block, 0);
+    // for subkey in &subkeys {
+    //     println!("{:x}", subkey);
+    // }
+    // println!("{:x}", key_block);
 }
