@@ -33,7 +33,7 @@ mod tests {
         let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
         let plaintext: Vec<u8> = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
 
-        let results = whiten(&key, &plaintext);
+        let results = whiten_input(&key, &plaintext);
         assert!(results == [0xaaee, 0xaa66, 0xaaee, 0xaa66]);
     }
 
@@ -220,26 +220,27 @@ mod tests {
         let block = 0x9bbb3172811429e4;
         let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
 
-        let key = create_whitening_blocks(&key);
-
         let r0 = 0x9bbb;
         let r1 = 0x3172;
         let r2 = 0x8114;
         let r3 = 0x29e4;
 
-        let y0 = r2;
-        let y1 = r3;
-        let y2 = r0;
-        let y3 = r1;
+        let y = vec![r2, r3, r0, r1];
 
-        let ciphertext = whiten_blocks(&vec![y0, y1, y2, y3], &key);
-        let ciphertext = to_u32_vec(&ciphertext);
-        let ciphertext = ((ciphertext[0] as u64) << 32) | ciphertext[1] as u64;
+        let ciphertext = whiten_output(&create_whitening_blocks(&key), &y);
+
         assert!(ciphertext == 0x2ad9c6e5b8fe56fb);
     }
 }
 
-fn whiten(key: &Vec<u8>, plaintext: &Vec<u8>) -> Vec<u16> {
+fn whiten_output(key: &Vec<u16>, y: &Vec<u16>) -> u64 {
+    let ciphertext = whiten_blocks(y, key);
+    let ciphertext = to_u32_vec(&ciphertext);
+
+    ((ciphertext[0] as u64) << 32) | ciphertext[1] as u64
+}
+
+fn whiten_input(key: &Vec<u8>, plaintext: &Vec<u8>) -> Vec<u16> {
     let key_blocks = create_whitening_blocks(key);
     let plaintext_blocks = create_whitening_blocks(plaintext);
 
