@@ -159,13 +159,12 @@ mod tests {
         ];
 
         let mut key_block: u64 = 0xabcdef0123456789;
-        // key_block = key_block.rotate_left(16);
-        // println!("{:x}", key_block);
 
         let mut actual: Vec<Vec<u8>> = vec![];
 
         for r in 0..NUM_ROUNDS {
-            let subkeys = generate_subkeys_for_decrypt(&mut key_block, r);
+            let mut subkeys = generate_subkeys_for_decrypt(&mut key_block, r);
+            subkeys.reverse();
             assert!(subkeys.len() == COL_LEN);
             actual.push(subkeys);
         }
@@ -281,6 +280,19 @@ mod tests {
 
     #[test]
     #[ignore]
+    fn test_decrypt() {
+        let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
+        let ciphertext: Vec<u8> = vec![0x2a, 0xd9, 0xc6, 0xe5, 0xb8, 0xfe, 0x56, 0xfb];
+
+        let plaintext = decrypt(&key, &ciphertext);
+
+        println!("PLAINTEXT: {:x}", plaintext);
+        let actual: u64 = 0x01234567890abcdef;
+        assert!(plaintext == actual);
+    }
+
+    #[test]
+    #[ignore]
     fn test_file_handling() {
         let mut f = File::open("input/plaintext.txt").expect("File for plaintext not found");
         let mut plaintext = String::new();
@@ -312,6 +324,38 @@ fn encrypt(key: &Vec<u8>, plaintext: &Vec<u8>) -> u64 {
 
     for r in 0..NUM_ROUNDS {
         let subkeys = generate_subkeys_for_encrypt(&mut key_block, r);
+        let (f0, f1) = f(r0, r1, &subkeys, r);
+
+        let temp_r2 = r2;
+        let temp_r3 = r3;
+        r2 = r0;
+        r3 = r1;
+        r0 = temp_r2 ^ f0 as u16;
+        r1 = temp_r3 ^ f1 as u16;
+    }
+
+    let y = vec![r2, r3, r0, r1];
+
+    whiten_output(&create_whitening_blocks(&key), &y)
+}
+
+fn decrypt(key: &Vec<u8>, ciphertext: &Vec<u8>) -> u64 {
+    let results = whiten_input(key, ciphertext);
+
+    let mut r0 = results[0];
+    let mut r1 = results[1];
+    let mut r2 = results[2];
+    let mut r3 = results[3];
+
+    let mut key_block = create_key_block(&key);
+
+    for r in (0..NUM_ROUNDS).rev() {
+        let mut subkeys = generate_subkeys_for_decrypt(&mut key_block, r);
+        subkeys.reverse();
+        // println!("SUBKEYS for round {}", r);
+        // for subkey in &subkeys {
+        //     println!("{:x}", subkey);
+        // }
         let (f0, f1) = f(r0, r1, &subkeys, r);
 
         let temp_r2 = r2;
@@ -459,6 +503,7 @@ fn k(x: usize, key: &u64) -> u8 {
     //     println!("Bits: {:x}", bit);
     // }
 
+    // println!("Returning {:x}", bits[x % 8]);
     bits[x % 8]
 }
 
@@ -478,7 +523,7 @@ fn generate_subkeys_for_encrypt(key_block: &mut u64, r: usize) -> Vec<u8> {
 fn generate_subkeys_for_decrypt(key_block: &mut u64, r: usize) -> Vec<u8> {
     let mut subkeys = vec![];
     for _ in 0..SUBKEY_GEN_ROUNDS {
-        for i in 0..SUBKEY_GEN_ROUNDS+1 {
+        for i in (0..SUBKEY_GEN_ROUNDS+1).rev() {
             let subkey = k(4*r + i, &key_block);
             subkeys.push(subkey);
             *key_block = key_block.rotate_right(1);
@@ -489,17 +534,6 @@ fn generate_subkeys_for_decrypt(key_block: &mut u64, r: usize) -> Vec<u8> {
 }
 
 fn main() {
-    // Testing keygen for decrypt
-
-    // let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
-    // let mut key_block: u64 = 0xabcdef0123456789;
-    // let mut key_block: u64 = 0xdef0123456789abc;
-    // let subkeys = generate_subkeys_for_decrypt(&mut key_block, 0);
-    // for subkey in &subkeys {
-    //     println!("{:x}", subkey);
-    // }
-    // println!("{:x}", key_block);
-
     let args: Vec<String> = env::args().collect();
 
     if args.len() != 2 {
@@ -510,8 +544,6 @@ fn main() {
         eprintln!("Note: 'ciphertext.txt' and 'key.txt' must exist under 'input/' for this to work");
         process::exit(1);
     }
-
-    println!("{}", args[1]);
 
     match args[1].as_ref() {
         "encrypt" => {
@@ -531,23 +563,24 @@ fn main() {
             let ciphertext = encrypt(&key, &plaintext);
             println!("{:x}", ciphertext);
         },
-        // Some("decrypt") => {
-        //     let mut f = File::open("input/ciphertext.txt").expect("File for ciphertext not found");
-        //     let mut plaintext = String::new();
-        //     f.read_to_string(&mut plaintext).expect("Issue parsing the file");
-        //     let plaintext = plaintext.into_bytes();
+        "decrypt" => {
+            let mut f = File::open("input/ciphertext.txt").expect("File for ciphertext not found");
+            let mut ciphertext = String::new();
+            f.read_to_string(&mut ciphertext).expect("Issue parsing the file");
+            let ciphertext = ciphertext.into_bytes();
 
-        //     let mut f = File::open("input/key.txt").expect("File for key not found");
-        //     let mut key = String::new();
-        //     f.read_to_string(&mut key).expect("Issue parsing the file");
-        //     let key = key.into_bytes();
+            let mut f = File::open("input/key.txt").expect("File for key not found");
+            let mut key = String::new();
+            f.read_to_string(&mut key).expect("Issue parsing the file");
+            let key = key.into_bytes();
 
-        //     // let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
-        //     // let plaintext: Vec<u8> = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
+            // let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
+            // let ciphertext: Vec<u8> = vec![0x2a, 0xd9, 0xc6, 0xe5, 0xb8, 0xfe, 0x56, 0xfb];
 
-        //     let ciphertext = encrypt(&key, &plaintext);
-        //     println!("{:x}", ciphertext);
-        // },
+            let plaintext = decrypt(&key, &ciphertext);
+
+            println!("{:x}", plaintext);
+        },
         _ => {
             eprintln!("Usage:\n");
             eprintln!("Execute 'cargo run encrypt' to perform encryption");
