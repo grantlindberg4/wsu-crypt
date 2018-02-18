@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     // #[ignore]
-    fn test_subkey_generation() {
+    fn test_subkey_generation_for_encrypt() {
         let expected: Vec<Vec<u8>> = vec![
             vec![0x13,  0x9e,  0x2b,  0x34,  0x35,  0xe2,  0xb3,  0x45,  0x57,  0x26,  0x3c,  0x56],
             vec![0x68,  0x48,  0x80,  0xef,  0x8a,  0x8d,  0x09,  0xf0,  0xac,  0xd1,  0x91,  0x01],
@@ -118,15 +118,48 @@ mod tests {
             vec![0xbd,  0xf3,  0xd5,  0x89,  0xde,  0x37,  0x5e,  0x9a,  0xe0,  0x7b,  0xe6,  0xab],
         ];
 
-
-        let key = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
-        let mut key_block = create_key_block(&key);
-        assert!(key_block == 0xabcdef0123456789);
+        let mut key_block = 0xabcdef0123456789;
 
         let mut actual: Vec<Vec<u8>> = vec![];
 
         for r in 0..NUM_ROUNDS {
-            let subkeys = generate_subkeys(&mut key_block, r);
+            let subkeys = generate_subkeys_for_encrypt(&mut key_block, r);
+            assert!(subkeys.len() == COL_LEN);
+            actual.push(subkeys);
+        }
+
+        assert!(actual == expected);
+    }
+
+    #[test]
+    fn test_subkey_generation_for_decrypt() {
+        let expected: Vec<Vec<u8>> = vec![
+            vec![0xbd,  0xf3,  0xd5,  0x89,  0xde,  0x37,  0x5e,  0x9a,  0xe0,  0x7b,  0xe6,  0xab],
+            vec![0x46,  0x04,  0x78,  0xde,  0x68,  0x48,  0x80,  0xef,  0x8a,  0x8d,  0x09,  0xf0],
+            vec![0xf1,  0x59,  0xa2,  0x23,  0x13,  0x9e,  0x2b,  0x34,  0x35,  0xe2,  0xb3,  0x45],
+            vec![0x9b,  0xaf,  0x4d,  0x78,  0xbd,  0xf3,  0xd5,  0x89,  0xde,  0x37,  0x5e,  0x9a],
+            vec![0x24,  0xc0,  0xf7,  0xcd,  0x46,  0x04,  0x78,  0xde,  0x68,  0x48,  0x80,  0xef],
+            vec![0xcf,  0x15,  0x1a,  0x12,  0xf1,  0x59,  0xa2,  0x23,  0x13,  0x9e,  0x2b,  0x34],
+            vec![0x79,  0x6a,  0xc4,  0x67,  0x9b,  0xaf,  0x4d,  0x78,  0xbd,  0xf3,  0xd5,  0x89],
+            vec![0x02,  0xbc,  0x6f,  0xbc,  0x24,  0xc0,  0xf7,  0xcd,  0x46,  0x04,  0x78,  0xde],
+            vec![0xac,  0xd1,  0x91,  0x01,  0xcf,  0x15,  0x1a,  0x12,  0xf1,  0x59,  0xa2,  0x23],
+            vec![0x57,  0x26,  0x3c,  0x56,  0x79,  0x6a,  0xc4,  0x67,  0x9b,  0xaf,  0x4d,  0x78],
+            vec![0xe0,  0x7b,  0xe6,  0xab,  0x02,  0xbc,  0x6f,  0xbc,  0x24,  0xc0,  0xf7,  0xcd],
+            vec![0x8a,  0x8d,  0x09,  0xf0,  0xac,  0xd1,  0x91,  0x01,  0xcf,  0x15,  0x1a,  0x12],
+            vec![0x35,  0xe2,  0xb3,  0x45,  0x57,  0x26,  0x3c,  0x56,  0x79,  0x6a,  0xc4,  0x67],
+            vec![0xde,  0x37,  0x5e,  0x9a,  0xe0,  0x7b,  0xe6,  0xab,  0x02,  0xbc,  0x6f,  0xbc],
+            vec![0x68,  0x48,  0x80,  0xef,  0x8a,  0x8d,  0x09,  0xf0,  0xac,  0xd1,  0x91,  0x01],
+            vec![0x13,  0x9e,  0x2b,  0x34,  0x35,  0xe2,  0xb3,  0x45,  0x57,  0x26,  0x3c,  0x56],
+        ];
+
+        let mut key_block: u64 = 0xabcdef0123456789;
+        // key_block = key_block.rotate_left(16);
+        // println!("{:x}", key_block);
+
+        let mut actual: Vec<Vec<u8>> = vec![];
+
+        for r in 0..NUM_ROUNDS {
+            let subkeys = generate_subkeys_for_decrypt(&mut key_block, r);
             assert!(subkeys.len() == COL_LEN);
             actual.push(subkeys);
         }
@@ -143,7 +176,8 @@ mod tests {
         let mut r3 = 0xaa66;
         let mut key_block = 0xabcdef0123456789;
 
-        let (f0, f1) = f(r0, r1, &mut key_block, 0);
+        let subkeys = generate_subkeys_for_encrypt(&mut key_block, 0);
+        let (f0, f1) = f(r0, r1, &subkeys, 0);
         assert!(f0 == 0x3eb1);
         assert!(f1 == 0xa4e9);
         let temp_r2 = r2;
@@ -189,22 +223,23 @@ mod tests {
 
         let mut blocks = vec![];
 
-         for r in 0..NUM_ROUNDS {
-            let (f0, f1) = f(r0, r1, &mut key_block, r);
-            if r == 0 {
-                assert!(f0 == 0x3eb1);
-                assert!(f1 == 0xa4e9);
-            }
-            let temp_r2 = r2;
-            let temp_r3 = r3;
-            r2 = r0;
-            r3 = r1;
-            r0 = temp_r2 ^ f0 as u16;
-            r1 = temp_r3 ^ f1 as u16;
-
-            let block = to_u32_vec(&vec![r0, r1, r2, r3]);
-            let block = ((block[0] as u64) << 32) | block[1] as u64;
-            blocks.push(block);
+        for r in 0..NUM_ROUNDS {
+            let subkeys = generate_subkeys_for_encrypt(&mut key_block, r);
+             let (f0, f1) = f(r0, r1, &subkeys, r);
+             if r == 0 {
+                 assert!(f0 == 0x3eb1);
+                 assert!(f1 == 0xa4e9);
+             }
+             let temp_r2 = r2;
+             let temp_r3 = r3;
+             r2 = r0;
+             r3 = r1;
+             r0 = temp_r2 ^ f0 as u16;
+             r1 = temp_r3 ^ f1 as u16;
+ 
+             let block = to_u32_vec(&vec![r0, r1, r2, r3]);
+             let block = ((block[0] as u64) << 32) | block[1] as u64;
+             blocks.push(block);
         }
 
         assert!(blocks == expected);
@@ -249,7 +284,8 @@ fn encrypt(key: &Vec<u8>, plaintext: &Vec<u8>) -> u64 {
     let mut key_block = create_key_block(&key);
 
     for r in 0..NUM_ROUNDS {
-        let (f0, f1) = f(r0, r1, &mut key_block, r);
+        let subkeys = generate_subkeys_for_encrypt(&mut key_block, r);
+        let (f0, f1) = f(r0, r1, &subkeys, r);
 
         let temp_r2 = r2;
         let temp_r3 = r3;
@@ -278,33 +314,6 @@ fn whiten_input(key: &Vec<u8>, plaintext: &Vec<u8>) -> Vec<u16> {
     whiten_blocks(&key_blocks, &plaintext_blocks)
 }
 
-fn k(x: usize, key: &u64) -> u8 {
-    let key = key.swap_bytes();
-    let mut bits = vec![];
-
-    // Well, this is jank
-    let mut i = 56;
-    while i >= 0 {
-        bits.push((key >> i) as u8);
-        i -= 8;
-    }
-
-    bits[x % 8]
-}
-
-fn generate_subkeys(key_block: &mut u64, r: usize) -> Vec<u8> {
-    let mut subkeys = vec![];
-    for _ in 0..SUBKEY_GEN_ROUNDS {
-        for i in 0..SUBKEY_GEN_ROUNDS+1 {
-            *key_block = key_block.rotate_left(1);
-            let subkey = k(4*r + i, &key_block);
-            subkeys.push(subkey);
-        }
-    }
-
-    subkeys
-}
-
 fn get_f_table_value(index: u8) -> u8 {
     let row = (index >> 4) as usize;
     // I hope there's a more elegant way to find a column
@@ -325,9 +334,7 @@ fn g(r: u16, subkeys: &[u8], _round: usize) -> u16 {
     to_u16_block(&g5, &g6)
 }
 
-fn f(r0: u16, r1: u16, key_block: &mut u64, round: usize) -> (u16, u16) {
-    let subkeys = generate_subkeys(key_block, round);
-
+fn f(r0: u16, r1: u16, subkeys: &Vec<u8>, round: usize) -> (u16, u16) {
     let t0 = g(r0, &subkeys[0..4], round);
     let t1 = g(r1, &subkeys[4..8], round);
 
@@ -408,7 +415,59 @@ fn create_key_block(key: &Vec<u8>) -> u64 {
     ((key[0] as u64) << 32) | key[1] as u64
 }
 
+fn k(x: usize, key: &u64) -> u8 {
+    // println!("Before swap: {:x}", key);
+    let key = key.swap_bytes();
+    // println!("After swap: {:x}", key);
+    let mut bits = vec![];
+
+    // Well, this is jank
+    let mut i = 56;
+    while i >= 0 {
+        bits.push((key >> i) as u8);
+        i -= 8;
+    }
+
+    // for bit in &bits {
+    //     println!("Bits: {:x}", bit);
+    // }
+
+    bits[x % 8]
+}
+
+fn generate_subkeys_for_encrypt(key_block: &mut u64, r: usize) -> Vec<u8> {
+    let mut subkeys = vec![];
+    for _ in 0..SUBKEY_GEN_ROUNDS {
+        for i in 0..SUBKEY_GEN_ROUNDS+1 {
+            *key_block = key_block.rotate_left(1);
+            let subkey = k(4*r + i, &key_block);
+            subkeys.push(subkey);
+        }
+    }
+
+    subkeys
+}
+
+fn generate_subkeys_for_decrypt(key_block: &mut u64, r: usize) -> Vec<u8> {
+    let mut subkeys = vec![];
+    for _ in 0..SUBKEY_GEN_ROUNDS {
+        for i in 0..SUBKEY_GEN_ROUNDS+1 {
+            let subkey = k(4*r + i, &key_block);
+            subkeys.push(subkey);
+            *key_block = key_block.rotate_right(1);
+        }
+    }
+
+    subkeys
+}
+
 fn main() {
-    // let key: u64 = 0xabcdef0123456789;
     // let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
+    let mut key_block: u64 = 0xabcdef0123456789;
+    // let mut key_block: u64 = 0xdef0123456789abc;
+    let subkeys = generate_subkeys_for_decrypt(&mut key_block, 0);
+    for subkey in &subkeys {
+        println!("{:x}", subkey);
+    }
+    println!("{:x}", key_block);
 }
