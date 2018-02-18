@@ -1,5 +1,7 @@
 use std::fs::File;
 use std::io::prelude::*;
+use std::env;
+use std::process;
 
 static F_TABLE: [u8; 256] = [
     0xa3, 0xd7, 0x09, 0x83, 0xf8, 0x48, 0xf6, 0xf4, 0xb3, 0x21, 0x15, 0x78, 0x99, 0xb1, 0xaf, 0xf9, 
@@ -278,6 +280,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_file_handling() {
         let mut f = File::open("input/plaintext.txt").expect("File for plaintext not found");
         let mut plaintext = String::new();
@@ -496,4 +499,62 @@ fn main() {
     //     println!("{:x}", subkey);
     // }
     // println!("{:x}", key_block);
+
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() != 2 {
+        eprintln!("Usage:\n");
+        eprintln!("Execute 'cargo run encrypt' to perform encryption");
+        eprintln!("Note: 'plaintext.txt' and 'key.txt' must exist under 'input/' for this to work\n");
+        eprintln!("Execute 'cargo run decrypt' to perform decryption");
+        eprintln!("Note: 'ciphertext.txt' and 'key.txt' must exist under 'input/' for this to work");
+        process::exit(1);
+    }
+
+    println!("{}", args[1]);
+
+    match args[1].as_ref() {
+        "encrypt" => {
+            let mut f = File::open("input/plaintext.txt").expect("File for plaintext not found");
+            let mut plaintext = String::new();
+            f.read_to_string(&mut plaintext).expect("Issue parsing the file");
+            let plaintext = plaintext.into_bytes();
+
+            let mut f = File::open("input/key.txt").expect("File for key not found");
+            let mut key = String::new();
+            f.read_to_string(&mut key).expect("Issue parsing the file");
+            let key = key.into_bytes();
+
+            // let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
+            // let plaintext: Vec<u8> = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
+
+            let ciphertext = encrypt(&key, &plaintext);
+            println!("{:x}", ciphertext);
+        },
+        // Some("decrypt") => {
+        //     let mut f = File::open("input/ciphertext.txt").expect("File for ciphertext not found");
+        //     let mut plaintext = String::new();
+        //     f.read_to_string(&mut plaintext).expect("Issue parsing the file");
+        //     let plaintext = plaintext.into_bytes();
+
+        //     let mut f = File::open("input/key.txt").expect("File for key not found");
+        //     let mut key = String::new();
+        //     f.read_to_string(&mut key).expect("Issue parsing the file");
+        //     let key = key.into_bytes();
+
+        //     // let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
+        //     // let plaintext: Vec<u8> = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
+
+        //     let ciphertext = encrypt(&key, &plaintext);
+        //     println!("{:x}", ciphertext);
+        // },
+        _ => {
+            eprintln!("Usage:\n");
+            eprintln!("Execute 'cargo run encrypt' to perform encryption");
+            eprintln!("Note: 'plaintext.txt' and 'key.txt' must exist under 'input/' for this to work\n");
+            eprintln!("Execute 'cargo run decrypt' to perform decryption");
+            eprintln!("Note: 'ciphertext.txt' and 'key.txt' must exist under 'input/' for this to work");
+            process::exit(1);
+        }
+    }
 }
