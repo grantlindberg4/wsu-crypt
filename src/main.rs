@@ -13,6 +13,8 @@ mod test;
 
 const NUM_EXPECTED_ARGS: usize = 2;
 
+/// Displays a message telling the user how to properly run the program
+/// Invoked when a command line parsing error has occurred
 fn display_error_message() {
     eprintln!("Usage:\n");
     eprintln!("Execute 'cargo run encrypt' to perform encryption");

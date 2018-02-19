@@ -23,6 +23,17 @@ pub const ROW_LEN: usize = 16;
 pub const COL_LEN: usize = 12;
 pub const NUM_ROUNDS: usize = 16;
 
+/// # Description
+/// Takes an unsigned 8-bit integer as an index to return the corresponding value of that index within the F Table
+/// The high 4 bits are used to index the row
+/// The low 4 bits are used to index the column
+///
+/// # Arguments
+/// * `index` - An unsigned 8-bit integer
+///
+/// # Example
+/// let value = crypt::get_f_table_value(0x7a);
+/// assert!(value == 0xd6);
 pub fn get_f_table_value(index: u8) -> u8 {
     let row = (index >> 4) as usize;
     // I hope there's a more elegant way to find a column
@@ -31,6 +42,19 @@ pub fn get_f_table_value(index: u8) -> u8 {
     F_TABLE[row*ROW_LEN + col]
 }
 
+/// # Description
+/// Retrieves values from the F table and performs bitwise xors to obtain a final unsigned 16-bit integer to be used in the F function
+///
+/// # Arguments
+/// * `r` - An unsigned 16-bit integer. The function breaks up the low 8 bits from the high 8 bits in order to get values from the F table
+/// * `subkeys` - A slice of a vector of unsigned 8-bit integers. Used to help get values from the F table.
+/// * `_round` - A pointer-sized integer. This value does not actually serve any purpose in this function.
+///
+/// # Example
+/// let r0 = 0xaaee;
+/// let subkeys = vec![0x13, 0x9e, 0x2b, 0x34, 0x35, 0xe2,0xb3, 0x45, 0x57, 0x26, 0x3c, 0x56];
+/// let t0 = crypt::g(r0, &subkeys[0..4], 0);
+/// assert!(t0 == 0xf889);
 pub fn g(r: u16, subkeys: &[u8], _round: usize) -> u16 {
     let g1 = (r >> 8) as u8;
     let g2 = r as u8;
@@ -43,6 +67,22 @@ pub fn g(r: u16, subkeys: &[u8], _round: usize) -> u16 {
     convert_types::to_u16_block(&g5, &g6)
 }
 
+/// # Description
+/// Makes calls to the G function and performs summations to return a tuple of two unsigned 16-bit integers, which are used for creating key blocks each round
+///
+/// # Arguments
+/// * `r0` - An unsigned 16-bit integer. This value is one of the blocks obtained after input whitening.
+/// * `r1` - An unsigned 16-bit integer. This value is one of the blocks obtained after input whitening.
+/// * `subkeys` - A slice of a vector of unsigned 8-bit integers. Used to help get values from the F table and perform summations.
+/// * `_round` - A pointer-sized integer. This value does not actually serve any purpose in this function.
+///
+/// # Example
+/// let mut r0 = 0xaaee;
+/// let mut r1 = 0xaa66;
+/// let subkeys = vec![0x13, 0x9e, 0x2b, 0x34, 0x35, 0xe2,0xb3, 0x45, 0x57, 0x26, 0x3c, 0x56];
+/// let (f0, f1) = crypt::f(r0, r1, &subkeys, 0);
+/// assert!(f0 == 0x3eb1);
+/// assert!(f1 == 0xa4e9);
 pub fn f(r0: u16, r1: u16, subkeys: &Vec<u8>, round: usize) -> (u16, u16) {
     let t0 = g(r0, &subkeys[0..4], round);
     let t1 = g(r1, &subkeys[4..8], round);
@@ -56,6 +96,20 @@ pub fn f(r0: u16, r1: u16, subkeys: &Vec<u8>, round: usize) -> (u16, u16) {
     (f0, f1)
 }
 
+/// # Description
+/// Accepts two vectors of bytes as input (key and plaintext) and returns an encrypted unsigned 64-bit integer representing the ciphertext
+///
+/// # Arguments
+/// * `key` - A vector of bytes. This value is obtained from the file 'input/key.txt'
+/// * `plaintext` - A vector of bytes. This value is obtained from the file 'input/plaintext.txt'
+///
+/// # Example
+/// let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
+/// let plaintext: Vec<u8> = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
+/// 
+/// let ciphertext = crypt::encrypt(&key, &plaintext);
+/// 
+/// assert!(ciphertext == 0x2ad9c6e5b8fe56fb);
 pub fn encrypt(key: &Vec<u8>, plaintext: &Vec<u8>) -> u64 {
     let results = whiten::whiten_input(key, plaintext);
 
@@ -83,6 +137,20 @@ pub fn encrypt(key: &Vec<u8>, plaintext: &Vec<u8>) -> u64 {
     whiten::whiten_output(&whiten::create_whitening_blocks(&key), &y)
 }
 
+/// # Description
+/// Accepts two vectors of bytes as input (key and ciphertext) and returns a decrypted unsigned 64-bit integer representing the plaintext
+///
+/// # Arguments
+/// * `key` - A vector of bytes. This value is obtained from the file 'input/key.txt'
+/// * `ciphertext` - A vector of bytes. This value is obtained from the file 'input/ciphertext.txt'
+///
+/// # Example
+/// let key: Vec<u8> = vec![0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89];
+/// let ciphertext: Vec<u8> = vec![0x2a, 0xd9, 0xc6, 0xe5, 0xb8, 0xfe, 0x56, 0xfb];
+/// 
+/// let plaintext = crypt::decrypt(&key, &ciphertext);
+/// 
+/// assert!(plaintext == 0x01234567890abcdef);
 pub fn decrypt(key: &Vec<u8>, ciphertext: &Vec<u8>) -> u64 {
     let results = whiten::whiten_input(key, ciphertext);
 
@@ -94,8 +162,7 @@ pub fn decrypt(key: &Vec<u8>, ciphertext: &Vec<u8>) -> u64 {
     let mut key_block = convert_types::create_key_block(&key);
 
     for r in (0..NUM_ROUNDS).rev() {
-        let mut subkeys = subkey_gen::generate_subkeys_for_decrypt(&mut key_block, r);
-        subkeys.reverse();
+        let subkeys = subkey_gen::generate_subkeys_for_decrypt(&mut key_block, r);
         let (f0, f1) = f(r0, r1, &subkeys, r);
 
         let temp_r2 = r2;
